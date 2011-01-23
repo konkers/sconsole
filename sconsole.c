@@ -137,6 +137,7 @@ int main(int argc, char *argv[])
 	int fd, n;
 	int escape = 0;
 	int logfd = -1;
+	unsigned char ESC = 27;
 
 	for (n = ' '; n < 127; n++)
 		valid[n] = 1;
@@ -208,7 +209,25 @@ int main(int argc, char *argv[])
 				break;
 			}
 			if ((fds[0].revents & POLLIN) && (read(0, &x, 1) == 1)) {
-				if (escape) {
+				switch (escape) {
+				case 0:
+					if (x == 27) {
+						escape = 1;
+					} else {
+						write(fd, &x, 1);
+					}
+					break;
+				case 1:
+					if (x == 27) {
+						escape = 2;
+						fprintf(stderr, "\n[ (b)reak? e(x)it? ]\n");
+					} else {
+						escape = 0;
+						write(fd, &ESC, 1);
+						write(fd, &x, 1);
+					}
+					break;
+				case 2:
 					escape = 0;
 					switch (x) {
 					case 27:
@@ -225,13 +244,7 @@ int main(int argc, char *argv[])
 						fprintf(stderr, "[ huh? ]\n");
 						break;
 					}
-				} else {
-					if (x == 27) {
-						fprintf(stderr, "\n[ (b)reak? e(x)it? ]\n");
-						escape = 1;
-					} else {
-						write(fd, &x, 1);
-					}
+					break;
 				}
 			}
 			if ((fds[1].revents & POLLIN) && (read(fd, &x, 1) == 1)) {
