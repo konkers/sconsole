@@ -134,6 +134,7 @@ int main(int argc, char *argv[])
 	struct pollfd fds[2];
 	int speed = B115200;
 	const char *device = "/dev/ttyUSB0";
+	const char *logfile = "console.log";
 	int fd, n;
 	int escape = 0;
 	int logfd = -1;
@@ -156,7 +157,9 @@ int main(int argc, char *argv[])
 			break;
 		case 'l':
 			/* log */
-			logfd = open("console.log", O_CREAT | O_WRONLY, 0644);
+			if (argv[1][2])
+				logfile = &argv[1][2];
+			logfd = open(logfile, O_CREAT | O_WRONLY, 0644);
 			break;
 		default:
 			fprintf(stderr, "unknown option %s\n", argv[1]);
