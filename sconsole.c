@@ -101,7 +101,7 @@ int openserial(const char *device, int speed)
 {
 	struct termios tio;
 	int fd;
-	fd = open(device, O_RDWR | O_NOCTTY);
+	fd = open(device, O_RDWR | O_NOCTTY | O_NDELAY);
 
 	if (fd < 0)
 		return -1;
@@ -110,6 +110,8 @@ int openserial(const char *device, int speed)
 		memset(&tio, 0, sizeof(tio));
 
 	tio.c_cflag = B57600 | CS8 | CLOCAL | CREAD;
+	tio.c_ispeed = B57600;
+	tio.c_ospeed = B57600;
 	tio.c_iflag = IGNPAR;
 	tio.c_lflag = 0; /* turn of CANON, ECHO*, etc */
 	tio.c_cc[VTIME] = 0;
@@ -117,7 +119,14 @@ int openserial(const char *device, int speed)
 	tcsetattr(fd, TCSANOW, &tio);
 	tcflush(fd, TCIFLUSH);
 
-	tio.c_cflag = speed | CS8 | CLOCAL | CREAD;
+#ifdef __APPLE__
+	tio.c_cflag =  CS8 | CLOCAL | CREAD;
+#else
+	tio.c_cflag =  speed | CS8 | CLOCAL | CREAD;
+#endif
+	tio.c_ispeed = speed;
+	tio.c_ospeed = speed;
+
 	tcsetattr(fd, TCSANOW, &tio);
 	tcflush(fd, TCIFLUSH);
 	return fd;
@@ -128,6 +137,61 @@ static unsigned char valid[256];
 #define STATE_IDLE    0
 #define STATE_PREFIX  1
 #define STATE_COMMAND 2
+
+#ifdef __APPLE__
+/* Darwin's poll is broken.  Implement a replacement using select */
+int select_poll(struct pollfd *fds, int nfds, int timeout)
+{
+	fd_set rfds;
+	fd_set wfds;
+	fd_set efds;
+	int max_fd = 0;
+	int retval;
+	struct timeval tv;
+	int i;
+
+	FD_ZERO(&rfds);
+	FD_ZERO(&wfds);
+	FD_ZERO(&efds);
+
+	for (i = 0; i < nfds; i++) {
+		if (fds[i].events == POLLIN)
+			FD_SET(fds[i].fd, &rfds);
+		if (fds[i].events == POLLOUT)
+			FD_SET(fds[i].fd, &wfds);
+		FD_SET(fds[i].fd, &efds);
+
+		if (fds[i].fd > max_fd)
+			max_fd = fds[i].fd;
+
+		fds[i].revents = 0;
+	}
+
+	retval = select(max_fd + 1, &rfds, &wfds, &efds, NULL);
+
+	if (errno == EAGAIN) {
+		return 0;
+	}
+
+	if (retval < 0) {
+		return -1;
+	}
+
+	for (i = 0; i < nfds; i++ ) {
+		if (FD_ISSET(fds[i].fd, &rfds))
+			fds[i].revents |= POLLIN;
+		if (FD_ISSET(fds[i].fd, &wfds))
+			fds[i].revents |= POLLOUT;
+		if (FD_ISSET(fds[i].fd, &efds))
+			fds[i].revents |= POLLERR;
+	}
+
+	return 1;
+}
+
+#define poll select_poll
+
+#endif /* __APPLE__ */
 
 int main(int argc, char *argv[])
 {
