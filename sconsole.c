@@ -207,6 +207,7 @@ int main(int argc, char *argv[])
 	for (n = ' '; n < 127; n++)
 		valid[n] = 1;
 
+	valid[7] = -1; /* bell */
 	valid[8] = 1; /* backspace */
 	valid[9] = 1; /* tab */
 	valid[10] = 1; /* newline */
@@ -315,11 +316,15 @@ int main(int argc, char *argv[])
 				}
 			}
 			if ((fds[1].revents & POLLIN) && (read(fd, &x, 1) == 1)) {
+				unsigned char c = x;
 				if (!valid[x])
-					x = '.';
-				write(1, &x, 1);
-				if (logfd != -1)
-					write(logfd, &x, 1);
+					c = '.';
+
+				if (valid[x] != -1) {
+					write(1, &c, 1);
+					if (logfd != -1)
+						write(logfd, &c, 1);
+				}
 			}
 		}
 	}
