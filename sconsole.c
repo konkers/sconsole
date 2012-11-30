@@ -86,6 +86,8 @@ int text2speed(const char *s)
 	switch (n) {
 	case 115200:
 		return B115200;
+	case 57600:
+		return B57600;
 	case 38400:
 		return B38400;
 	case 19200:
