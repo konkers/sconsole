@@ -115,6 +115,7 @@ int openserial(const char *device, int speed)
 	tio.c_ispeed = B57600;
 	tio.c_ospeed = B57600;
 	tio.c_iflag = IGNPAR;
+	tio.c_oflag &= ~ONLCR;
 	tio.c_lflag = 0; /* turn of CANON, ECHO*, etc */
 	tio.c_cc[VTIME] = 0;
 	tio.c_cc[VMIN] = 1;
