@@ -103,10 +103,26 @@ int openserial(const char *device, int speed)
 {
 	struct termios tio;
 	int fd;
+	int fl;
+
+	/* open the serial port non-blocking to avoid waiting for cd */
 	fd = open(device, O_RDWR | O_NOCTTY | O_NDELAY);
 
 	if (fd < 0)
 		return -1;
+
+
+	/* then switch the fd to blocking */
+	fl = fcntl(fd, F_GETFL, 0);
+	if (fl < 0) {
+		close(fd);
+		return -1;
+	}
+	fl = fcntl(fd, F_SETFL,  fl & ~O_NDELAY);
+	if (fl < 0) {
+		close(fd);
+		return -1;
+	}
 
 	if (tcgetattr(fd, &tio))
 		memset(&tio, 0, sizeof(tio));
