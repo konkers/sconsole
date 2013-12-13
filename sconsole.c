@@ -219,6 +219,7 @@ int main(int argc, char *argv[])
 	const char *device = "/dev/ttyUSB0";
 	const char *logfile = "console.log";
 	int fd, n;
+	int map_nl_to_cr = 0;
 	int escape = 0;
 	int logfd = -1;
 	unsigned char ESC = 27;
@@ -244,6 +245,10 @@ int main(int argc, char *argv[])
 			if (argv[1][2])
 				logfile = &argv[1][2];
 			logfd = open(logfile, O_CREAT | O_WRONLY, 0644);
+			break;
+		case 'c':
+			/* carriage return mode -- map \n to \r */
+			map_nl_to_cr = 1;
 			break;
 		default:
 			fprintf(stderr, "unknown option %s\n", argv[1]);
@@ -301,7 +306,12 @@ int main(int argc, char *argv[])
 					if (x == 27) {
 						escape = 1;
 					} else {
-						write(fd, &x, 1);
+						if ((x == '\n') && map_nl_to_cr) {
+							x = '\r';
+							write(fd, &x, 1);
+						} else {
+							write(fd, &x, 1);
+						}
 					}
 					break;
 				case 1:
