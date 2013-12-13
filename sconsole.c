@@ -212,6 +212,18 @@ int select_poll(struct pollfd *fds, int nfds, int timeout)
 
 #endif /* __APPLE__ */
 
+void usage(void) {
+	fprintf(stderr,
+		"usage: sconsole [ <flag> ]* [ <device> [ <speed> ] ]\n"
+		"\n"
+		"flags:   -t    transparent mode (don't filter unprintables, etc)\n"
+		"         -l    log to console.log (or -lsomeotherlogfile)\n"
+		"         -c    convert NL to CR on transmit\n"
+		"\n"
+		"default device /dev/ttyUSB and speed 115200\n"
+		);
+}
+
 int main(int argc, char *argv[])
 {
 	struct pollfd fds[2];
@@ -250,8 +262,12 @@ int main(int argc, char *argv[])
 			/* carriage return mode -- map \n to \r */
 			map_nl_to_cr = 1;
 			break;
+		case 'h':
+			usage();
+			return 0;
 		default:
-			fprintf(stderr, "unknown option %s\n", argv[1]);
+			fprintf(stderr, "error: unknown option %s\n\n", argv[1]);
+			usage();
 			return 1;
 		}
 		argv++;
@@ -273,7 +289,8 @@ int main(int argc, char *argv[])
 
 	fd = openserial(device, speed);
 	if (fd < 0) {
-		fprintf(stderr, "stderr open '%s'\n", device);
+		fprintf(stderr, "error opening '%s': %s\n",
+			device, strerror(errno));
 		return -1;
 	}
 
