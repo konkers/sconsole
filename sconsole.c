@@ -291,69 +291,70 @@ int main(int argc, char *argv[])
 	for (;;) {
 		unsigned char x, t;
 
-		if (poll(fds, 2, -1) > 0) {
-			if (fds[0].revents & (POLLERR | POLLHUP)) {
-				fprintf(stderr, "\n[ stdin port closed ]\n");
-				break;
-			}
-			if (fds[1].revents & (POLLERR | POLLHUP)) {
-				fprintf(stderr, "\n[ serial port closed ]\n");
-				break;
-			}
-			if ((fds[0].revents & POLLIN) && (read(0, &x, 1) == 1)) {
-				switch (escape) {
-				case 0:
-					if (x == 27) {
-						escape = 1;
-					} else {
-						if ((x == '\n') && map_nl_to_cr) {
-							x = '\r';
-							write(fd, &x, 1);
-						} else {
-							write(fd, &x, 1);
-						}
-					}
-					break;
-				case 1:
-					if (x == 27) {
-						escape = 2;
-						fprintf(stderr, "\n[ (b)reak? e(x)it? ]\n");
-					} else {
-						escape = 0;
-						write(fd, &ESC, 1);
-						write(fd, &x, 1);
-					}
-					break;
-				case 2:
-					escape = 0;
-					switch (x) {
-					case 27:
-						write(fd, &x, 1);
-						break;
-					case 'b':
-						fprintf(stderr, "[ break ]\n");
-						tcsendbreak(fd, 0);
-						break;
-					case 'x':
-						fprintf(stderr, "[ exit ]\n");
-						goto done;
-					default:
-						fprintf(stderr, "[ huh? ]\n");
-						break;
-					}
-					break;
-				}
-			}
-			if ((fds[1].revents & POLLIN) && (read(fd, &x, 1) == 1)) {
-				unsigned char c = x;
-				if (!valid[x])
-					c = '.';
+		if (poll(fds, 2, -1) < 1)
+			continue;
 
-				if (valid[x] != -1) {
-					write(1, &c, 1);
-					if (logfd != -1)
-						write(logfd, &c, 1);
+		if (fds[0].revents & (POLLERR | POLLHUP)) {
+			fprintf(stderr, "\n[ stdin port closed ]\n");
+			break;
+		}
+		if (fds[1].revents & (POLLERR | POLLHUP)) {
+			fprintf(stderr, "\n[ serial port closed ]\n");
+			break;
+		}
+		if ((fds[0].revents & POLLIN) && (read(0, &x, 1) == 1)) {
+			switch (escape) {
+			case 0:
+				if (x == 27) {
+					escape = 1;
+				} else {
+					if ((x == '\n') && map_nl_to_cr) {
+						x = '\r';
+						write(fd, &x, 1);
+					} else {
+						write(fd, &x, 1);
+					}
 				}
+				break;
+			case 1:
+				if (x == 27) {
+					escape = 2;
+					fprintf(stderr, "\n[ (b)reak? e(x)it? ]\n");
+				} else {
+					escape = 0;
+					write(fd, &ESC, 1);
+					write(fd, &x, 1);
+				}
+				break;
+			case 2:
+				escape = 0;
+				switch (x) {
+				case 27:
+					write(fd, &x, 1);
+					break;
+				case 'b':
+					fprintf(stderr, "[ break ]\n");
+					tcsendbreak(fd, 0);
+					break;
+				case 'x':
+					fprintf(stderr, "[ exit ]\n");
+					goto done;
+				default:
+					fprintf(stderr, "[ huh? ]\n");
+					break;
+				}
+				break;
+			}
+		}
+		if ((fds[1].revents & POLLIN) && (read(fd, &x, 1) == 1)) {
+			unsigned char c = x;
+			if (!valid[x])
+				c = '.';
+
+			if (valid[x] != -1) {
+				write(1, &c, 1);
+				if (logfd != -1)
+					write(logfd, &c, 1);
 			}
 		}
 	}
