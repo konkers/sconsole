@@ -228,7 +228,11 @@ int main(int argc, char *argv[])
 {
 	struct pollfd fds[2];
 	int speed = B115200;
+#ifdef __APPLE__
+	const char *device = "/dev/tty.usbserial";
+#else
 	const char *device = "/dev/ttyUSB0";
+#endif
 	const char *logfile = "console.log";
 	int fd, n;
 	int map_nl_to_cr = 0;
