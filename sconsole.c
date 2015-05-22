@@ -151,7 +151,7 @@ int openserial(const char *device, int speed)
 	return fd;
 }
 
-static unsigned char valid[256];
+static char valid[256];
 
 #define STATE_IDLE    0
 #define STATE_PREFIX  1
