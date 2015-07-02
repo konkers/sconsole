@@ -1,6 +1,6 @@
 /* sconsole - cheap serial console (for xterm, etc)
  *
- * Copyright (c) 2005-2010
+ * Copyright (c) 2005-2015
  *	Brian Swetland.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -82,19 +82,35 @@ void oops(int x)
 
 int text2speed(const char *s)
 {
-	int n = atoi(s);
+	char *e;
+	unsigned n = strtoul(s, &e, 10);
+	switch (*e) {
+	case 'k':
+	case 'K':
+		n *= 1000;
+		break;
+	case 'm':
+	case 'M':
+		n *= 1000000;
+		break;
+	}
 	switch (n) {
-	case 115200:
-		return B115200;
-	case 57600:
-		return B57600;
-	case 38400:
-		return B38400;
-	case 19200:
-		return B19200;
-	case 9600:
-		return B9600;
+	case 4000000:	return B4000000;
+	case 3500000:	return B3500000;
+	case 3000000:	return B3000000;
+	case 2500000:	return B2500000;
+	case 2000000:	return B2000000;
+	case 1500000:	return B1500000;
+	case 1152000:	return B1152000;
+	case 1000000:	return B1000000;
+	case 921600:	return B921600;
+	case 115200:	return B115200;
+	case 57600:	return B57600;
+	case 38400:	return B38400;
+	case 19200:	return B19200;
+	case 9600:	return B9600;
 	default:
+		fprintf(stderr, "unsupported baud rate %dbps\n", n);
 		return B115200;
 	}
 }
@@ -106,26 +122,23 @@ int openserial(const char *device, int speed)
 	int fl;
 
 	/* open the serial port non-blocking to avoid waiting for cd */
-	fd = open(device, O_RDWR | O_NOCTTY | O_NDELAY);
-
-	if (fd < 0)
+	if ((fd = open(device, O_RDWR | O_NOCTTY | O_NDELAY)) < 0) {
 		return -1;
-
+	}
 
 	/* then switch the fd to blocking */
-	fl = fcntl(fd, F_GETFL, 0);
-	if (fl < 0) {
+	if ((fl = fcntl(fd, F_GETFL, 0)) < 0) {
 		close(fd);
 		return -1;
 	}
-	fl = fcntl(fd, F_SETFL,  fl & ~O_NDELAY);
-	if (fl < 0) {
+	if ((fl = fcntl(fd, F_SETFL,  fl & ~O_NDELAY)) < 0) {
 		close(fd);
 		return -1;
 	}
 
-	if (tcgetattr(fd, &tio))
+	if (tcgetattr(fd, &tio)) {
 		memset(&tio, 0, sizeof(tio));
+	}
 
 	tio.c_cflag = B57600 | CS8 | CLOCAL | CREAD;
 	tio.c_ispeed = B57600;
@@ -219,6 +232,7 @@ void usage(void) {
 		"flags:   -t    transparent mode (don't filter unprintables, etc)\n"
 		"         -l    log to console.log (or -lsomeotherlogfile)\n"
 		"         -c    convert NL to CR on transmit\n"
+		"         -x    display characters in hex\n"
 		"\n"
 		"default device /dev/ttyUSB and speed 115200\n"
 		);
@@ -238,6 +252,7 @@ int main(int argc, char *argv[])
 	int map_nl_to_cr = 0;
 	int escape = 0;
 	int logfd = -1;
+	int hexmode = 0;
 	unsigned char ESC = 27;
 
 	for (n = ' '; n < 127; n++)
@@ -251,6 +266,9 @@ int main(int argc, char *argv[])
 
 	while ((argc > 1) && (argv[1][0] == '-')) {
 		switch (argv[1][1]) {
+		case 'x':
+			hexmode = 1;
+			break;
 		case 't':
 			/* transparent mode */
 			for (n = 0; n < 256; n++)
@@ -368,14 +386,20 @@ int main(int argc, char *argv[])
 			}
 		}
 		if ((fds[1].revents & POLLIN) && (read(fd, &x, 1) == 1)) {
-			unsigned char c = x;
-			if (!valid[x])
-				c = '.';
+			if (hexmode) {
+				char hex[4];
+				sprintf(hex, "%02x ", x);
+				write(1, hex, 3);
+			} else {
+				unsigned char c = x;
+				if (!valid[x])
+					c = '.';
 
-			if (valid[x] != -1) {
-				write(1, &c, 1);
-				if (logfd != -1)
-					write(logfd, &c, 1);
+				if (valid[x] != -1) {
+					write(1, &c, 1);
+					if (logfd != -1)
+						write(logfd, &c, 1);
+				}
 			}
 		}
 	}
