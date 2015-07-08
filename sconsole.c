@@ -44,6 +44,19 @@
 #include <sys/fcntl.h>
 #include <sys/types.h>
 
+#ifdef __APPLE__
+#include <IOKit/serial/ioss.h>
+#define B4000000 4000000
+#define B3500000 3500000
+#define B3000000 3000000
+#define B2500000 2500000
+#define B2000000 2000000
+#define B1500000 1500000
+#define B1152000 1152000
+#define B1000000 1000000
+#define B921600 921600
+#endif
+
 static struct termios tio_save;
 
 static void stdin_raw_init(void)
@@ -160,6 +173,16 @@ int openserial(const char *device, int speed)
 	tio.c_ospeed = speed;
 
 	tcsetattr(fd, TCSANOW, &tio);
+
+#ifdef __APPLE__
+	if (speed >= 921600) {
+		if (ioctl(fd, IOSSIOSPEED, &speed) == -1) {
+			fprintf(stderr, "error IOSSIOSPEED ioctl: %s(%d)\n",
+				strerror(errno), errno);
+		}
+	}
+#endif
+
 	tcflush(fd, TCIFLUSH);
 	return fd;
 }
