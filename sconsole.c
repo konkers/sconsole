@@ -44,6 +44,26 @@
 #include <sys/fcntl.h>
 #include <sys/types.h>
 
+#define BOTHER 0010000
+
+#ifdef __APPLE__
+#include <IOKit/serial/ioss.h>
+#else
+struct termios2 {
+	tcflag_t c_iflag;
+	tcflag_t c_oflag;
+	tcflag_t c_cflag;
+	tcflag_t c_lflag;
+	cc_t c_line;
+	cc_t c_cc[19];
+	speed_t c_ispeed;
+	speed_t c_ospeed;
+};
+
+#define TCGETS2 _IOR('T', 0x2A, struct termios2)
+#define TCSETS2 _IOW('T', 0x2B, struct termios2)
+#endif
+
 static struct termios tio_save;
 
 static void stdin_raw_init(void)
@@ -80,10 +100,9 @@ void oops(int x)
 	exit(1);
 }
 
-int text2speed(const char *s)
+int speed2termios(speed_t speed)
 {
-	int n = atoi(s);
-	switch (n) {
+	switch (speed) {
 	case 115200:
 		return B115200;
 	case 57600:
@@ -95,11 +114,40 @@ int text2speed(const char *s)
 	case 9600:
 		return B9600;
 	default:
-		return B115200;
+		return BOTHER;
 	}
 }
 
-int openserial(const char *device, int speed)
+static void setcustomspeed(int fd, speed_t speed)
+{
+#ifdef __APPLE__
+	ioctl(fd, IOSSIOSPEED, &speed);
+#else
+	struct termios2 tio2;
+	ioctl(fd, TCGETS2, &tio2);
+
+	tio2.c_cflag = BOTHER | CS8 | CLOCAL | CREAD;
+	tio2.c_ospeed = speed;
+	tio2.c_ispeed = speed;
+
+	ioctl(fd, TCSETS2, &tio2);
+#endif
+}
+
+static void setstandardspeed(int fd, struct termios *tio, int speed)
+{
+#ifdef __APPLE__
+	tio->c_cflag =  CS8 | CLOCAL | CREAD;
+#else
+	tio->c_cflag =  speed | CS8 | CLOCAL | CREAD;
+#endif
+	tio->c_ispeed = speed;
+	tio->c_ospeed = speed;
+
+	tcsetattr(fd, TCSANOW, tio);
+}
+
+int openserial(const char *device, speed_t speed)
 {
 	struct termios tio;
 	int fd;
@@ -138,15 +186,12 @@ int openserial(const char *device, int speed)
 	tcsetattr(fd, TCSANOW, &tio);
 	tcflush(fd, TCIFLUSH);
 
-#ifdef __APPLE__
-	tio.c_cflag =  CS8 | CLOCAL | CREAD;
-#else
-	tio.c_cflag =  speed | CS8 | CLOCAL | CREAD;
-#endif
-	tio.c_ispeed = speed;
-	tio.c_ospeed = speed;
+	int termios_speed = speed2termios(speed);
+	if (termios_speed == BOTHER)
+		setcustomspeed(fd, speed);
+	else
+		setstandardspeed(fd, &tio, termios_speed);
 
-	tcsetattr(fd, TCSANOW, &tio);
 	tcflush(fd, TCIFLUSH);
 	return fd;
 }
@@ -215,7 +260,7 @@ int select_poll(struct pollfd *fds, int nfds, int timeout)
 int main(int argc, char *argv[])
 {
 	struct pollfd fds[2];
-	int speed = B115200;
+	speed_t speed = 115200;
 	const char *device = "/dev/ttyUSB0";
 	const char *logfile = "console.log";
 	int fd, n;
@@ -260,8 +305,8 @@ int main(int argc, char *argv[])
 	}
 
 	if (argc > 1) {
-		speed = text2speed(argv[1]);
-		fprintf(stderr, "SPEED: %s %08x\n", argv[1], speed);
+		speed = atoi(argv[1]);
+		fprintf(stderr, "SPEED: %s\n", argv[1]);
 		argc--;
 		argv++;
 	}
