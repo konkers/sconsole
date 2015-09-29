@@ -33,6 +33,7 @@
 #include <string.h>
 #include <unistd.h>
 #include <errno.h>
+#include <limits.h>
 
 #include <termios.h>
 #include <signal.h>
@@ -305,7 +306,14 @@ int main(int argc, char *argv[])
 	}
 
 	if (argc > 1) {
-		speed = atoi(argv[1]);
+		unsigned long speed_long;
+		char *endptr;
+		speed_long = strtoul(argv[1], &endptr, 0);
+		speed = (speed_t)speed_long;
+		if (speed_long == ULONG_MAX || speed_long != speed || *endptr != '\0') {
+			fprintf(stderr, "invalid speed '%s'\n", argv[1]);
+			return -1;
+		}
 		fprintf(stderr, "SPEED: %s\n", argv[1]);
 		argc--;
 		argv++;
