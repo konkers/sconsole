@@ -28,6 +28,7 @@
  * SUCH DAMAGE.
  */
 
+#include <ctype.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -264,6 +265,7 @@ int main(int argc, char *argv[])
 	speed_t speed = 115200;
 	const char *device = "/dev/ttyUSB0";
 	const char *logfile = "console.log";
+	const char *speed_arg = NULL;
 	int fd, n;
 	int escape = 0;
 	int logfd = -1;
@@ -300,23 +302,34 @@ int main(int argc, char *argv[])
 	}
 
 	if (argc > 1) {
-		device = argv[1];
+		const char* arg = argv[1];
+		/* interpret first arg as baud rate if it stars with a digit */
+		if (isdigit(arg[0])) {
+			speed_arg = arg;
+		} else {
+			device = arg;
+		}
 		argc--;
 		argv++;
 	}
 
 	if (argc > 1) {
-		unsigned long speed_long;
-		char *endptr;
-		speed_long = strtoul(argv[1], &endptr, 0);
-		speed = (speed_t)speed_long;
-		if (speed_long == ULONG_MAX || speed_long != speed || *endptr != '\0') {
-			fprintf(stderr, "invalid speed '%s'\n", argv[1]);
-			return -1;
-		}
-		fprintf(stderr, "SPEED: %s\n", argv[1]);
+		if (!speed_arg)
+			speed_arg = argv[1];
 		argc--;
 		argv++;
+	}
+
+	if (speed_arg) {
+		unsigned long speed_long;
+		char *endptr;
+		speed_long = strtoul(speed_arg, &endptr, 0);
+		speed = (speed_t)speed_long;
+		if (speed_long == ULONG_MAX || speed_long != speed || *endptr != '\0') {
+			fprintf(stderr, "invalid speed '%s'\n", speed_arg);
+			return -1;
+		}
+		fprintf(stderr, "SPEED: %s\n", speed_arg);
 	}
 
 	fd = openserial(device, speed);
